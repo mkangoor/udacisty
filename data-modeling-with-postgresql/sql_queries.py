@@ -20,8 +20,7 @@ songplay_table_create = ("""
         artist_id text, 
         session_id int, 
         location text, 
-        user_agent text,
-        primary key (songplay_id)
+        user_agent text
     )
 """)
 
