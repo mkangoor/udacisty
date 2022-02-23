@@ -100,11 +100,11 @@ def process_log_file(cur, filepath):
 
 
 def process_data(cur, conn, filepath, func):
-   '''
-   - read all .json file for a given `filepath` directory
-   - print count of files found in the directory
-   - process files either by `process_song_file` or `process_log_file`
-   '''
+    '''
+    - read all .json file for a given `filepath` directory
+    - print count of files found in the directory
+    - process files either by `process_song_file` or `process_log_file`
+    '''
     # get all files matching extension from directory
     all_files = []
     for root, dirs, files in os.walk(filepath):
