@@ -13,15 +13,14 @@ time_table_drop = f"{drop_statement} time"
 songplay_table_create = ("""
     create table if not exists songplays (
         songplay_id serial primary key, 
-        start_time bigint not null, 
+        start_time timestamp not null, 
         user_id int not null, 
         level varchar, 
-        song_id text, 
-        artist_id text, 
+        song_id varchar, 
+        artist_id varchar, 
         session_id int, 
-        location text, 
-        user_agent text,
-        primary key (songplay_id)
+        location varchar, 
+        user_agent varchar
     )
 """)
 
@@ -40,7 +39,7 @@ song_table_create = ("""
     create table if not exists songs (
         song_id varchar, 
         title varchar, 
-        artist_id text, 
+        artist_id varchar, 
         year int, 
         duration float,
         primary key (song_id)
@@ -74,8 +73,8 @@ time_table_create = ("""
 # INSERT RECORDS
 
 songplay_table_insert = ("""
-    insert into songplays (songplay_id, start_time, user_id, level, song_id, artist_id, session_id, location, user_agent)
-    values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    insert into songplays (start_time, user_id, level, song_id, artist_id, session_id, location, user_agent)
+    values (%s, %s, %s, %s, %s, %s, %s, %s)
     on conflict (songplay_id) do nothing
 """)
 
