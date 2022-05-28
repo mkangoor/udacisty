@@ -10,7 +10,7 @@ LOG_JSON_PATH = config.get('S3','LOG_JSONPATH')
 IAM_ROLE = config.get('IAM_ROLE','ARN')
 
 # DROP TABLES
-drop_statement = 'drop table if exists'
+drop_statement = 'DROP TABLE IF EXISTS'
 
 staging_events_table_drop = f'{drop_statement} staging_events'
 staging_songs_table_drop = f'{drop_statement} staging_songs'
@@ -23,7 +23,7 @@ time_table_drop = f'{drop_statement} time'
 # CREATE TABLES
 
 staging_events_table_create = ("""
-    create table if not exists staging_events (
+   CREATE TABLE IF NOT EXISTS staging_events (
         artist varchar,
         auth varchar,
         first_name varchar,
@@ -46,7 +46,7 @@ staging_events_table_create = ("""
 """)
 
 staging_songs_table_create = ("""
-    create table if not exists staging_songs (
+   CREATE TABLE IF NOT EXISTS staging_songs (
         num_songs int,
         artist_id varchar,
         artist_latitude float,
@@ -61,9 +61,9 @@ staging_songs_table_create = ("""
 """)
 
 songplay_table_create = ("""
-    create table if not exists songplays (
+   CREATE TABLE IF NOT EXISTS songplays (
         songplay_id int identity(0,1), 
-        start_time timestamp not null, 
+        start_time bigint not null, 
         user_id int not null, 
         level varchar, 
         song_id varchar, 
@@ -76,7 +76,7 @@ songplay_table_create = ("""
 """)
 
 user_table_create = ("""
-    create table if not exists users (
+   CREATE TABLE IF NOT EXISTS users (
         user_id int, 
         first_name varchar, 
         last_name varchar, 
@@ -87,7 +87,7 @@ user_table_create = ("""
 """)
 
 song_table_create = ("""
-    create table if not exists songs (
+   CREATE TABLE IF NOT EXISTS songs (
         song_id varchar, 
         title varchar, 
         artist_id varchar, 
@@ -98,7 +98,7 @@ song_table_create = ("""
 """)
 
 artist_table_create = ("""
-    create table if not exists artists (
+   CREATE TABLE IF NOT EXISTS artists (
         artist_id varchar, 
         name varchar, 
         location varchar, 
@@ -109,7 +109,7 @@ artist_table_create = ("""
 """)
 
 time_table_create = ("""
-    create table if not exists time (
+   CREATE TABLE IF NOT EXISTS time (
         start_time bigint not null, 
         hour int, 
         day int, 
@@ -124,7 +124,7 @@ time_table_create = ("""
 # STAGING TABLES
 
 staging_events_copy = (f"""
-    copy staging_events from {LOG_DATA} 
+    COPY staging_events FROM {LOG_DATA} 
     credentials 'aws_iam_role={IAM_ROLE}'
     format as json {LOG_JSON_PATH} 
     region 'us-west-2';
@@ -140,38 +140,71 @@ staging_songs_copy = (f"""
 # FINAL TABLES
 
 songplay_table_insert = ("""
-    insert into songplays (start_time, user_id, level, song_id, artist_id, session_id, location, user_agent)
-    values (%s, %s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO songplays (start_time, user_id, level, song_id, artist_id, session_id, location, user_agent)
+    SELECT 
+        ste.ts, 
+        ste.user_id, 
+        ste.level, 
+        s.song_id, 
+        a.artist_id, 
+        ste.session_id, 
+        ste.location, 
+        ste.user_agent
+    FROM staging_events ste
+        INNER JOIN songs s ON ste.song = s.title
+        INNER JOIN artists a ON s.artist_id = a.artist_id
+    WHERE ste.page = 'NextSong'
 """)
 
 user_table_insert = ("""
-    insert into users (user_id, first_name, last_name, gender, level)
-    values (%s, %s, %s, %s, %s)
+    INSERT INTO users (user_id, first_name, last_name, gender, level)
+    SELECT DISTINCT 
+        user_id, 
+        first_name, 
+        last_name, 
+        gender, 
+        level
+    FROM staging_events
+    WHERE page='NextSong'
 """)
 
 song_table_insert = ("""
-    insert into songs (song_id, title, artist_id, year, duration)
-    values (%s, %s, %s, %s, %s)
+    INSERT INTO songs (song_id, title, artist_id, year, duration)
+    SELECT 
+        song_id, 
+        title, 
+        artist_id, 
+        year, 
+        duration
+    FROM staging_songs
 """)
 
 artist_table_insert = ("""
-    insert into artists (artist_id, name, location, latitude, longitude)
-    values (%s, %s, %s, %s, %s)
+    INSERT INTO artists (artist_id, name, location, latitude, longitude)
+    SELECT 
+        artist_id, 
+        artist_name, 
+        artist_location, 
+        artist_latitude, 
+        artist_longitude
+    FROM staging_songs
 """)
 
-time_table_insert = ("""
-    insert into time (start_time, hour, day, week, month, year, weekday)
-    values (%s, %s, %s, %s, %s, %s, %s)
+TO_TIMESTAMP: str = "TIMESTAMP 'epoch' + (ts / 1000) * INTERVAL '1 second'"
+
+time_table_insert = (f"""
+    INSERT INTO time (start_time, hour, day, week, month, year, weekday)
+    SELECT 
+        ts, 
+        EXTRACT(hour FROM ({TO_TIMESTAMP})) AS hour, 
+        EXTRACT(day FROM ({TO_TIMESTAMP})) AS day, 
+        EXTRACT(week FROM ({TO_TIMESTAMP})) AS week, 
+        EXTRACT(month FROM ({TO_TIMESTAMP})) AS month, 
+        EXTRACT(year FROM ({TO_TIMESTAMP})) AS year, 
+        EXTRACT(weekday FROM ({TO_TIMESTAMP})) AS weekday
+    FROM staging_events
+    WHERE page = 'NextSong'
 """)
-
-# SELECT ROWS
-
-staging_events_select = 'select * from staging_events'
-staging_songs_select = 'select * from staging_songs'
-song_select = ("""
-    select s.song_id, a.artist_id from songs as s join artists as a on a.artist_id = s.artist_id where s.title = %s AND a.name = %s AND s.duration = %s
-""")
-
 
 # QUERY LISTS
 
@@ -179,3 +212,4 @@ create_table_queries = [staging_events_table_create, staging_songs_table_create,
 drop_table_queries = [staging_events_table_drop, staging_songs_table_drop, songplay_table_drop, user_table_drop, song_table_drop, artist_table_drop, time_table_drop]
 copy_table_queries = [staging_events_copy, staging_songs_copy]
 insert_table_queries = [songplay_table_insert, user_table_insert, song_table_insert, artist_table_insert, time_table_insert]
+table_names = ['songplays', 'users', 'songs', 'artists', 'time']
