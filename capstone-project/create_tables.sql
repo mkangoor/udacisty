@@ -32,6 +32,6 @@ CREATE TABLE IF NOT EXISTS public.staging_immigration(
 
 COPY public.staging_immigration 
 FROM 's3://capstone-project-mt/immigration-data'
-ACCESS_KEY_ID 'AKIA6D3RSHDSPWBXEA4R'
-SECRET_ACCESS_KEY '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'
+ACCESS_KEY_ID 'XYZ'
+SECRET_ACCESS_KEY 'XYZ'
 FORMAT AS Parquet 
