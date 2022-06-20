@@ -43,12 +43,12 @@ spark
 ### Step 1: Scope the Project and Gather Data
 
 #### Scope 
-The purpose of this project is building an ELT pipeline that extracts Immigration, Demographics & Airport data from S3, stages them in Redshift, and transforms data into a set of dimensional and fact tables for the analytics team in order to run analytical SQL queries in efficient way, and continue finding insights. For table storage and transformation we will be using Redshift Cluster along with Postgres SQL. Moreover, all single step is monitoring and organized thanks to Airflow.
+The purpose of this project is to build Star Schema data model that allows final user query data in efficient way by creating fast-readable and easy to understand tables dependencies with its columns. In order to achive this, ELT pipeline will be built that extracts Immigration & Airport data from S3, stages them in Redshift, and transforms data into a set of dimensional and fact tables for the analytics team to allow analytical team continue finding interesting insights. For table storage and transformation we will be using Redshift Cluster along with Postgres SQL. Moreover, all single step is monitoring and organized thanks to Airflow.
 
 #### Describe and Gather Data 
 For the scope of this project data with regards to Immigration, Demographics & Airport was used. Additionally, mapping dictionary from `I94_SAS_Labels_Descriptions.SAS` file was applied to Immigration data. Below is description of mentioned datasets:
 - **Immigration** - this data comes from the US National Tourism and Trade Office ([link](https://www.trade.gov/national-travel-and-tourism-office))
-- **Airport Codes** - this data contains the list of all airport codes, the attributes are identified in datapackage description. Some of the columns contain attributes identifying airport locations, other codes (IATA, local if exist) that are relevant to identification of an airport ([link](https://datahub.io/core/airport-codes#data))
+- **Airport codes** - this data contains the list of all airport codes, the attributes are identified in datapackage description. Some of the columns contain attributes identifying airport locations, other codes (IATA, local if exist) that are relevant to identification of an airport ([link](https://datahub.io/core/airport-codes#data))
 
 The data downloaded and uploaded into S3 Bucket named `capstone-project-mt` which can be accessible via Launch Cloud Gateway with regards to fifth project (Pipeline).
 
@@ -140,16 +140,146 @@ The Star Schema was used in order to create fact table - `immigration` - and dim
 - `airport_city`
 - `visa_type`
 
-<img width="1500" alt="Pipeline" src="https://github.com/mkangoor/udacisty/blob/d80d2e5d54973e543429d312430f84ab4816c23b/capstone-project/ing/db-schema.png">
+One of the reason for using Star Schema is that fact table will joining only with the dimension tables, leading to simpler, faster SQL queries which allows analytical team read data in efficient way. Morevoer, it allows us keep  dimension tables unnormalize while, e.g Snowflake Schemas dimension tables are normalized.
 
-#### 3.2 Mapping Out Data Pipelines
+<img width="1500" alt="db" src="ing/db-schema.png">
+
+#### 3.2 Data dictionary
+
+- Immigration table dictionary 
+
+| immigration table  | Constraint  | Description                                                 |
+|--------------|-------------|-------------------------------------------------------------|
+| admission_no | Primary Key | Admission Number                                            |
+| cic_id       | Foreign Key | Data provided id                                            |
+| passenger_id | Foreign Key | Passenger id                                                |
+| flight_id    | Foreign Key | Flight id                                                   |
+| visa_id      | Foreign Key | Visa id                                                     |
+| year         |             | Year                                                        |
+| month        |             | Month                                                       |
+| day          |             | Day                                                         |
+| travel_model | Foreign Key | Mode of transportation(1=Air, 2=Sea, 3=Land, 9=Not reported |
+| count        |             | Summary statistics                                          |
+
+- Passenger table dictionary 
+
+| passenger table        | Constraint  | Description                     |
+|------------------------|-------------|---------------------------------|
+| passenger_id           | Primary Key | Passenger id                    |
+| insnum                 |             | Insurance number                |
+| gender                 |             | Gender                          |
+| years                  |             | Ages of passenger               |
+| birth_year             |             | Year of birth                   |
+| occupation             |             | Occupation                      |
+| state_of_residence_abb |             | State of residence abbreviation |
+| state_of_residence     |             | State of residence              |
+
+
+- Flights table dictionary
+
+| flights table          | Constraint  | Description                     |
+|------------------------|-------------|---------------------------------|
+| flight_id              | Primary Key | Flight id                       |
+| flight_no              |             | Flight number                   |
+| dep_country_id         |             | Departure country id            |
+| dep_country            |             | Departure country               |
+| arr_country_id         |             | Arriving country id             |
+| arr_country            |             | Arriving country                |
+| airport_city_abb       |             | Airport city abbreviation       |
+| airport_city_name      |             | Airport city name               |
+| state_of_residence_abb |             | State of residence abbreviation |
+| dep_date               |             | Departure data      |
+|arr_date||Arriving data|
+
+- Flight flags table dictionary
+
+| flight_flags table | Constraint  | Description                                                              |
+|--------------------|-------------|--------------------------------------------------------------------------|
+| cic_id             | Primary Key |  Table id                                                                |
+| admission_no       |             | Admission number                                                         |
+| arr_flag           |             | Arrival Flag - admitted or paroled into the U.S.                         |
+| dep_flag           |             | Departure Flag - Departed, lost I-94 or is deceased                      |
+| upd_flag           |             | Update Flag - Either apprehended, overstayed, adjusted to perm residence |
+| match_flag         |             | Match of arrival and departure records                                   |
+
+
+- Visas flags table dictionary
+
+| visas table     | Constraint  | Description                                                                        |
+|-----------------|-------------|------------------------------------------------------------------------------------|
+| cic_id          | Primary Key | Table id                                                                           |
+| visa_type_id    |             | Visa codes (1 = Business, 2 = Pleasure, 3 = Student)                               |
+| visa_type_class |             | Encoded visa codes (1 = Business, 2 = Pleasure, 3 = Student)                       |
+| visa_type       |             | Class of admission legally admitting the non-immigrant to temporarily stay in U.S. |
+| visa_post       |             | Department of State where where Visa was issued                                    |
+| admitted_date   |             | Date to which admitted to U.S. (allowed to stay until)                             |
+
+- Airport code table dictionary
+
+| airport_code table | Constraint  | Description                                                 |
+|--------------------|-------------|-------------------------------------------------------------|
+| ident              | Primary Key | Table id                                                    |
+| type               |             | Airport type (e.g.small, heliport)                          |
+| name               |             | Airport name                                                |
+| elevation_ft       |             | Flight number                                               |
+| continent          |             | Continent                                                   |
+| iso_country        |             | Country (by International Organization for Standardization) |
+| iso_region         |             | Region (by International Organization for Standardization)  |
+| municipality       |             | City                                                        |
+| gps_code           |             | GPS code                                                    |
+| iata_code          |             | International Air Transport Association Code                |
+|local_code||Local code|
+|coordinates||Such as latitude and longitude|
+
+- Airport city table dictionary
+
+| airport_city table | Constraint  | Description  |
+|--------------------|-------------|--------------|
+| key                | Primary Key | Table id     |
+| airport_city       |             | Airport city |
+
+- Country codes table dictionary
+
+| country_codes table | Constraint  | Description |
+|---------------------|-------------|-------------|
+| key                 | Primary Key | Table id    |
+| country             |             | Country     |
+
+- Airport type table dictionary
+
+| airport_type table | Constraint  | Description  |
+|--------------------|-------------|--------------|
+| key                | Primary Key | Table id     |
+| i94model           |             | Airport type |
+
+- states table dictionary
+
+| states table       | Constraint  | Description |
+|--------------------|-------------|-------------|
+| key                | Primary Key | Table id    |
+| state_of_residence |             | State       |
+
+- visa_type table dictionary
+
+| visa_type table | Constraint  | Description                                                  |
+|-----------------|-------------|--------------------------------------------------------------|
+| key             | Primary Key | Table id                                                     |
+| visa_type_class |             | Encoded visa codes (1 = Business, 2 = Pleasure, 3 = Student) |
+
+
+#### 3.3 Mapping Out Data Pipelines
 The pipeline starts from copying necessary data from S3 Bucket into Redshift Tables. Afterwards, fact table is creating along with dimensional tables. Next steps are two data quality checks that will justify whether:
 - number of records for all the tables are is expected
 - primary key for a given table is unique one
 
-<img width="1200" alt="Pipeline" src="https://github.com/mkangoor/udacisty/blob/d80d2e5d54973e543429d312430f84ab4816c23b/capstone-project/ing/data-pipeline.png">
+<img width="1500" alt="db" src="ing/data-pipeline.png">
 
 Pipeline logic is shared vid Git Hub Repo ([link](lome-link))
+
+Evidence of successful running above pipeline:
+<img width="1500" alt="db" src="ing/airflow-outcome.png">
+
+<img width="500" alt="db" src="ing/immigration-count.png">
 
 #### 4.2 Data Quality Checks
 Last two steps of presented pipeline are data quality checks that will justify whether:
@@ -189,6 +319,6 @@ Create a data dictionary for your data model. For each field, provide a brief de
 * S3 Bucket was chosen for data storing, it's quite compatible with Redshift Cluster that was utilized as a main engine of table transformation and storage. Whole the process was octhestried by Airflow that was easely connected with S3 and Redshift throught Connections created in Admin tab.
 * Tables from staging table should be updated either daily, monthly or quarterly depends of data availability and purposes of analytical team. Other data such as `airport_code` or five dictionary tables should remain untouched as their values are not going to change frequently with time.
 * Write a description of how you would approach the problem differently under the following scenarios:
- * The data was increased by 100x - **partition should be introduced**
+ * The data was increased by 100x - **partition should be introduced or we could use Uber's Hudi incremental inserting tool**
  * The data populates a dashboard that must be updated on a daily basis by 7am every day - **set up a sensor operator in Airflow that will be monitoring data availability for a particular day and upload all available data into table either with append mode or partition**
  * The database needed to be accessed by 100+ people - **structural improvement; Redshift is powerful database itself**
